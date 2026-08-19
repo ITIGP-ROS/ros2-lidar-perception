@@ -1,0 +1,70 @@
+# Canonical config for the Livox Mid-360S deployment model.
+#
+# THIS IS THE SINGLE SOURCE OF TRUTH. params.h is generated from it:
+#
+#     python3 tools/gen_params_h.py config/livox.yaml \
+#         -o src/cuda_pointpillars_ros/include/params.h
+#
+# It must also match the OpenPCDet config the model is TRAINED with. If they
+# disagree the runtime decodes one model's output with another model's
+# parameters -- which does not crash, it just produces confident nonsense.
+# The node cross-checks the loaded engine against params.h at startup and
+# refuses to run on a mismatch.
+#
+# Derived from Abdulrahman2200925/perception configs/mid360_*.yaml. Only x/y
+# and CLASS_NAMES differ from what that repo already has; everything else is
+# kept exactly as it was already tuned for the Mid-360.
+
+CLASS_NAMES: ['Pedestrian', 'Car']
+
+# Forward-only, ~41 m. The training repo currently has the full 360 degrees
+# ([-40.96, -40.96, ...]); rear coverage is not needed and costs 4x the grid.
+#   x: 40.96 / 0.16 = 256 cells      y: 40.96 / 0.16 = 256 cells
+#   grid 256x256 -> head 128x128     (vs 512x512 -> 256x256 for 360 degrees)
+# z is unchanged from the training repo: ground sits at -0.30 for a 0.30 m mount.
+POINT_CLOUD_RANGE: [0, -20.48, -0.5, 40.96, 20.48, 3.0]
+VOXEL_SIZE:        [0.16, 0.16, 3.5]
+MAX_POINTS_PER_VOXEL: 32
+
+# test == inference. MUST match the ONNX's `voxels` tensor first dimension.
+# The value itself is free (NVIDIA's own KITTI model ships 10000); what matters
+# is that the export and this agree. The node verifies it at startup.
+MAX_NUMBER_OF_VOXELS: {train: 16000, test: 40000}
+
+SCORE_THRESH: 0.1
+NMS_THRESH:   0.01
+
+# Pillar feature layout. OpenPCDet's PillarVFE with USE_ABSLOTE_XYZ builds 10
+# channels; the retired epoch_160.pth lineage builds 9. Stated explicitly rather
+# than left to the generator default -- docs/TRAINING_HANDOFF.md commits this
+# model to OpenPCDet.
+PILLAR_FEATURE_LAYOUT: openpcdet10
+
+# Anchor grid: false = endpoint-to-endpoint, which is OpenPCDet's default
+# (align_center: False). This is deliberately the OPPOSITE of
+# config/gp_pytorch_kitti.yaml, because that config describes the old
+# mmdet3d-lineage PyTorch model and this one describes an OpenPCDet model.
+# If training turns align_center on, flip this to true.
+ANCHOR_ALIGN_CENTER: false
+
+
+# Candidate caps. These are OpenPCDet's POST_PROCESSING defaults
+# (NMS_PRE_MAXSIZE / NMS_POST_MAXSIZE), NOT the retired PyTorch model's 100/50
+# -- they must match whatever the training repo's inference config uses, so
+# confirm them before deployment. Set either to 0 to disable it.
+NMS_PRE: 4096
+MAX_NUM:  500
+
+
+# Anchor values as the training repo already set them for the Mid-360: bottoms
+# just above the ground plane at -0.30. Sizes are physical and carry over from
+# KITTI unchanged.
+ANCHOR_GENERATOR_CONFIG:
+  - class_name: 'Pedestrian'
+    anchor_sizes:          [[0.8, 0.6, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.10]
+  - class_name: 'Car'
+    anchor_sizes:          [[3.9, 1.6, 1.56]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.19]

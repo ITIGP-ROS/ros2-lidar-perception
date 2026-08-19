@@ -1,0 +1,50 @@
+# Livox Mid-360S profile -- the real-world deployment target (Jetson Orin NX).
+#
+# The geometry (ranges, voxels, anchors, classes) does NOT live here: it lives in
+# config/livox.yaml, which generates params.h. These are only the runtime knobs.
+cuda_pointpillars_node:
+  ros__parameters:
+    model_path: ""                    # the Livox .onnx, set at launch
+    input_topic: "/livox/lidar"
+    output_topic: "object_detections_3d"
+    output_frame_id: ""               # empty = inherit the cloud's own frame
+
+    # Livox/RoboSense drivers name the 4th channel "reflectivity" (the node
+    # accepts either name). This value must match how INTENSITY WAS NORMALISED
+    # DURING TRAINING, not merely what the sensor emits -- it looks like a
+    # deployment knob but is really a training convention, and getting it wrong
+    # degrades accuracy silently instead of failing.
+    intensity_scale: 255.0
+
+    max_points: 300000
+
+    # The 2-class model emits 0=Pedestrian, 1=Car. Object3d.msg keeps
+    # PEDESTRIAN=0, CYCLIST=1 (reserved, unused), CAR=2 -- so Car maps to 2.
+    # Leaving the enum alone keeps the IVI, the visualiser and the tracker's
+    # per-class table untouched.
+    class_remap: [0, 2]
+
+    # The detector decodes a CENTRE z; bbox3d2corners treats z as the BOTTOM.
+    # Converting would be geometrically correct, but the validated Python
+    # pipeline does not convert and the IVI renders correctly without it.
+    # Kept false for bit-for-bit compatibility. See docs/TRAINING_HANDOFF.md.
+    convert_center_z_to_bottom: true
+
+
+    # Runtime cut-off on what is published to /object_detections_3d. Unlike
+    # SCORE_THRESH (compile-time, in config/*.yaml) this is a live ROS parameter:
+    #     ros2 param set /cuda_pointpillars_node score_threshold 0.5
+    # It can only RAISE the compiled SCORE_THRESH -- weaker boxes were already
+    # discarded on the GPU. 0.0 means "publish everything that cleared it".
+    score_threshold: 0.0
+
+    use_msg_stamp: true
+    publish_markers: false
+
+# ---- visualiser ------------------------------------------------------------
+# Display-only cut-off. Boxes below this are not drawn; detection and tracking
+# are unaffected -- that cut-off is SCORE_THRESH in config/*.yaml, which is
+# compiled into params.h and needs a rebuild to change.
+object3d_visualizer_node:
+  ros__parameters:
+    confidence_threshold: 0.35

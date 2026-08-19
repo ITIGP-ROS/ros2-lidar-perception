@@ -1,0 +1,44 @@
+# KITTI config for the NVIDIA CUDA-PointPillars reference model.
+#
+# 10000 is what NVIDIA actually SHIPS: their official model/pointpillar.onnx
+# (sha256 b48eada7..., 19,342,067 bytes) declares voxels[10000, 32, 10]. The
+# 40000 in config/kitti.yaml came from the PyTorch reference pipeline's
+# max_voxels=(16000 train, 40000 infer), which is a property of THAT pipeline
+# and has nothing to do with this ONNX. Do not "fix" this to 40000.
+CLASS_NAMES: ['Car', 'Pedestrian', 'Cyclist']
+
+POINT_CLOUD_RANGE: [0, -39.68, -3, 69.12, 39.68, 1]
+VOXEL_SIZE:        [0.16, 0.16, 4.0]
+MAX_POINTS_PER_VOXEL: 32
+MAX_NUMBER_OF_VOXELS: {train: 16000, test: 10000}
+
+SCORE_THRESH: 0.1
+NMS_THRESH:   0.01
+
+# Anchor grid: true = bin centres (this repo's PyTorch lineage),
+# false = endpoint-to-endpoint (OpenPCDet default / NVIDIA's model).
+ANCHOR_ALIGN_CENTER: false
+
+
+# Candidate caps. NVIDIA's reference pipeline applies NONE -- its postprocess
+# kernel emits every box above the score threshold and its NMS sees all of them.
+# 0 disables the cap and reproduces that behaviour exactly. Do not copy the
+# 100/50 from config/gp_pytorch_kitti.yaml here; those are the mmdet3d-lineage
+# PyTorch model's values and would silently drop boxes NVIDIA's model keeps.
+NMS_PRE: 0
+MAX_NUM:  0
+
+
+ANCHOR_GENERATOR_CONFIG:
+  - class_name: 'Car'
+    anchor_sizes:          [[3.9, 1.6, 1.56]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-1.78]
+  - class_name: 'Pedestrian'
+    anchor_sizes:          [[0.8, 0.6, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.6]
+  - class_name: 'Cyclist'
+    anchor_sizes:          [[1.76, 0.6, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.6]

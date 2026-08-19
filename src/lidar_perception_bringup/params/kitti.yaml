@@ -1,0 +1,52 @@
+# KITTI bag-replay profile.
+#
+# Validated against 2011_09_29_drive_0004_sync_bag with the repo's own model
+# (weights/epoch_160.pth exported by tools/export_pytorch_to_onnx.py). At the
+# network-output level this configuration reproduces the PyTorch reference to
+# correlation 0.9999 -- see docs/BAG_VALIDATION_STATUS.md.
+cuda_pointpillars_node:
+  ros__parameters:
+    # Absolute path to the .onnx. Override with model_path:=... on the
+    # launch line; whatever is set there wins over this.
+    model_path: "/home/youhana/ros2_ws_gp/src/ros2-lidar-perception/src/cuda_pointpillars_ros/model/pointpillar_gp.onnx"
+    input_topic: "/kitti/velo"        # the bag's topic; no remap needed
+    output_topic: "object_detections_3d"
+    output_frame_id: "velo_link"      # the bag's cloud frame
+
+    # KITTI intensity is ALREADY in [0, 1] (measured 0.000-0.990 on this bag),
+    # so it must NOT be divided again. The 255.0 default exists for
+    # RoboSense/Livox drivers whose channel is [0, 255].
+    intensity_scale: 1.0
+
+    # This bag: ~124k points, point_step 32, intensity at byte offset 16.
+    # Fields are located by name, never by assumed stride.
+    max_points: 300000
+
+    # epoch_160.pth was trained as Pedestrian, Cyclist, Car -- which is already
+    # object_detection_msgs' order, so this is the identity. (A KITTI-order
+    # model such as NVIDIA's reference would need [2, 0, 1].)
+    class_remap: [0, 1, 2]
+
+    # The CUDA decode emits a box CENTRE z; bbox3d2corners treats z as the
+    # BOTTOM. Without this the boxes render h/2 too high. The Python reference
+    # does the same subtraction at the end of anchors2bboxes (`z = z - h / 2`).
+    convert_center_z_to_bottom: true
+
+
+    # Runtime cut-off on what is published to /object_detections_3d. Unlike
+    # SCORE_THRESH (compile-time, in config/*.yaml) this is a live ROS parameter:
+    #     ros2 param set /cuda_pointpillars_node score_threshold 0.5
+    # It can only RAISE the compiled SCORE_THRESH -- weaker boxes were already
+    # discarded on the GPU. 0.0 means "publish everything that cleared it".
+    score_threshold: 0.0
+
+    use_msg_stamp: true
+    publish_markers: false            # the visualiser node draws the boxes
+
+# ---- visualiser ------------------------------------------------------------
+# Display-only cut-off. Boxes below this are not drawn; detection and tracking
+# are unaffected -- that cut-off is SCORE_THRESH in config/*.yaml, which is
+# compiled into params.h and needs a rebuild to change.
+object3d_visualizer_node:
+  ros__parameters:
+    confidence_threshold: 0.5

@@ -1,0 +1,29 @@
+# Colcon outputs
+build/
+install/
+log/
+__pycache__/
+*.pyc
+
+# TensorRT engines and caches. Rebuilt on first run and keyed to the exact GPU
+# arch + TRT version, so a committed one is worse than useless on another host.
+*.engine
+*.plan
+*.onnx.cache
+
+# Compiled extensions of the Python reference. These are x86-64 host builds used
+# to generate the golden vectors; nothing on the Jetson ever loads them.
+reference/**/ops/build/
+reference/**/*.so
+*.o
+
+# Large reference assets, kept out so BitBake's clone stays small. The golden
+# vectors in src/lidar_tracking/test/data are committed, so the C++ tests run
+# without these; you only need them to REGENERATE the goldens.
+reference/lidar_object_detection_py/weights/
+reference/lidar_object_detection_py/data/
+
+# Only the model the pipeline actually runs is versioned. The others are local
+# comparison inputs for config/kitti_shipped_onnx.yaml.
+src/cuda_pointpillars_ros/model/*.onnx
+!src/cuda_pointpillars_ros/model/pointpillar_gp.onnx

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>lidar_tracking</name>
+  <version>0.1.0</version>
+  <description>
+    C++ port of the AB3DMOT 3D multi-object tracker used by the LiDAR perception
+    pipeline. Behaviourally pinned to the original Python implementation by the
+    golden vectors in test/data.
+  </description>
+  <maintainer email="youhanabeshay@gmail.com">youhana</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>eigen</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>nlohmann-json-dev</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

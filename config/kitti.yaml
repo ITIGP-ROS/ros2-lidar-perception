@@ -1,0 +1,43 @@
+# KITTI reference config, describing NVIDIA's shipped model / OpenPCDet
+# conventions rather than this repo's PyTorch model. Use config/gp_pytorch_kitti.yaml
+# for the model the pipeline actually runs.
+#
+# This originally existed to verify tools/gen_params_h.py by reproducing the
+# hand-written params.h byte-for-byte. That no longer holds: params.h has since
+# gained nms_pre, max_num and anchor_align_center, which the hand-written file
+# predates. The generator is still the only supported way to produce params.h.
+CLASS_NAMES: ['Car', 'Pedestrian', 'Cyclist']
+
+POINT_CLOUD_RANGE: [0, -39.68, -3, 69.12, 39.68, 1]
+VOXEL_SIZE:        [0.16, 0.16, 4.0]
+MAX_POINTS_PER_VOXEL: 32
+MAX_NUMBER_OF_VOXELS: {train: 16000, test: 40000}
+
+SCORE_THRESH: 0.1
+NMS_THRESH:   0.01
+
+# Anchor grid: true = bin centres (this repo's PyTorch lineage),
+# false = endpoint-to-endpoint (OpenPCDet default / NVIDIA's model).
+ANCHOR_ALIGN_CENTER: false
+
+
+# Candidate caps, as OpenPCDet's POST_PROCESSING defaults them
+# (NMS_PRE_MAXSIZE / NMS_POST_MAXSIZE). Not the 100/50 of the mmdet3d-lineage
+# PyTorch model -- this config describes OpenPCDet conventions.
+NMS_PRE: 4096
+MAX_NUM:  500
+
+
+ANCHOR_GENERATOR_CONFIG:
+  - class_name: 'Car'
+    anchor_sizes:          [[3.9, 1.6, 1.56]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-1.78]
+  - class_name: 'Pedestrian'
+    anchor_sizes:          [[0.8, 0.6, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.6]
+  - class_name: 'Cyclist'
+    anchor_sizes:          [[1.76, 0.6, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.6]

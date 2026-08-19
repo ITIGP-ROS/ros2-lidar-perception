@@ -1,0 +1,50 @@
+# The repo's own trained PyTorch model (weights/epoch_160.pth), exported to ONNX
+# by tools/export_pytorch_to_onnx.py.
+#
+# Two things differ from a stock OpenPCDet KITTI model, and both are handled:
+#   * 9 pillar features, not 10 (mmdet3d-style) -> PILLAR_FEATURE_LAYOUT below
+#   * class order Pedestrian, Cyclist, Car -- which IS object_detection_msgs'
+#     order, so the runtime needs NO class remap: class_remap: [0, 1, 2]
+CLASS_NAMES: ['Pedestrian', 'Cyclist', 'Car']
+
+PILLAR_FEATURE_LAYOUT: mmdet3d9
+
+POINT_CLOUD_RANGE: [0, -39.68, -3, 69.12, 39.68, 1]
+VOXEL_SIZE:        [0.16, 0.16, 4.0]
+MAX_POINTS_PER_VOXEL: 32
+MAX_NUMBER_OF_VOXELS: {train: 16000, test: 40000}
+
+SCORE_THRESH: 0.35
+NMS_THRESH:   0.01
+
+# Anchor grid: true = bin centres (this repo's PyTorch lineage),
+# false = endpoint-to-endpoint (OpenPCDet default / NVIDIA's model).
+ANCHOR_ALIGN_CENTER: true
+
+
+# Candidate caps, mirroring the PyTorch decode. NMS_PRE keeps only the top-N
+# anchors (ranked by max class score) before NMS; MAX_NUM caps the final list.
+# Set either to 0 to disable it.
+NMS_PRE: 100
+MAX_NUM:  50
+
+
+# Sizes are copied VERBATIM from model/pointpillars.py's `sizes` list, NOT
+# transposed. That model's anchors are laid out (x,y,z,w,l,h,theta) and its
+# decode uses anchors[3] and anchors[4] directly, so the CUDA kernel's
+# anchor_ptr[0]/[1] must receive the same two numbers in the same order.
+# Transposing them to (dx,dy) -- correct for OpenPCDet -- silently changes the
+# box-size decode and the `diagonal` term for every detection.
+ANCHOR_GENERATOR_CONFIG:
+  - class_name: 'Pedestrian'
+    anchor_sizes:          [[0.6, 0.8, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.6]
+  - class_name: 'Cyclist'
+    anchor_sizes:          [[0.6, 1.76, 1.73]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-0.6]
+  - class_name: 'Car'
+    anchor_sizes:          [[1.6, 3.9, 1.56]]
+    anchor_rotations:      [0, 1.57]
+    anchor_bottom_heights: [-1.78]
