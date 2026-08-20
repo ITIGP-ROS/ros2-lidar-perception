@@ -22,21 +22,44 @@ find_package(CUDA REQUIRED)
 # the two machines.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
   set(CUDA_INSTALL_TARGET_DIR targets/aarch64-linux)
-  set(TENSORRT_INCLUDE_DIRS /usr/include/aarch64-linux-gnu/)
-  set(TENSORRT_LIBRARY_DIRS /usr/lib/aarch64-linux-gnu/)
+  set(DEFAULT_TENSORRT_INCLUDE_DIRS /usr/include/aarch64-linux-gnu/)
+  set(DEFAULT_TENSORRT_LIBRARY_DIRS /usr/lib/aarch64-linux-gnu/)
   # Orin NX is sm_87 only; the original multi-arch list (30..89) was trimmed
   # for build speed.
   set(GPU_SMS "87" CACHE STRING "CUDA SM architectures to generate code for")
 else()
   set(CUDA_INSTALL_TARGET_DIR targets/x86_64-linux)
-  set(TENSORRT_INCLUDE_DIRS /usr/include/x86_64-linux-gnu/)
-  set(TENSORRT_LIBRARY_DIRS /usr/lib/x86_64-linux-gnu/)
+  set(DEFAULT_TENSORRT_INCLUDE_DIRS /usr/include/x86_64-linux-gnu/)
+  set(DEFAULT_TENSORRT_LIBRARY_DIRS /usr/lib/x86_64-linux-gnu/)
   # Ampere by default; override with -DGPU_SMS=<arch> for other dev GPUs.
   set(GPU_SMS "86" CACHE STRING "CUDA SM architectures to generate code for")
 endif()
 
-set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda)
-set(CUDA_INCLUDE_DIRS ${CUDA_TOOLKIT_ROOT_DIR}/${CUDA_INSTALL_TARGET_DIR}/include)
+# ── Cross-compiling (Yocto/BitBake) ──────────────────────────────────────────
+# The defaults above are the paths JetPack's .debs use ON A RUNNING BOARD. A
+# Yocto cross build stages TensorRT somewhere else entirely: meta-tegra's
+# tensorrt-core and tensorrt-plugins-prebuilt install the headers to
+# ${includedir} and the libraries to ${libdir} inside the target sysroot, with
+# no aarch64-linux-gnu component at all.
+#
+# These are CACHE variables so the recipe can redirect them with -D. They must
+# NOT be plain set(): a normal variable shadows the cache for the rest of the
+# directory scope, so the -D would be accepted and then silently ignored, and
+# the compiler would be pointed at the BUILD HOST's /usr/include instead.
+set(TENSORRT_INCLUDE_DIRS "${DEFAULT_TENSORRT_INCLUDE_DIRS}"
+    CACHE PATH "Directory containing NvInfer.h")
+set(TENSORRT_LIBRARY_DIRS "${DEFAULT_TENSORRT_LIBRARY_DIRS}"
+    CACHE PATH "Directory containing libnvinfer.so")
+
+# Same trap, one level up. meta-tegra's cuda.bbclass already hands
+# find_package(CUDA) the right toolkit via -DCUDA_TOOLKIT_ROOT_DIR, and the
+# find_package() call above consumes it correctly -- but a plain set() here
+# would shadow it afterwards and send include_directories() at the host's CUDA.
+# Guarded on CMAKE_CROSSCOMPILING so a native build behaves exactly as before.
+if(NOT CMAKE_CROSSCOMPILING)
+  set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda)
+  set(CUDA_INCLUDE_DIRS ${CUDA_TOOLKIT_ROOT_DIR}/${CUDA_INSTALL_TARGET_DIR}/include)
+endif()
 
 # SASS for each listed arch. The trailing PTX (code=compute_XX) is a JIT
 # fallback for GPUs we did not compile for; it is OFF by default because the
@@ -64,12 +87,25 @@ if(PERFORMANCE_LOG)
   add_compile_definitions(PERFORMANCE_LOG=1)
 endif()
 
+# The rpath is for a native build, where TensorRT sits in a multiarch directory
+# the loader does not search by default. In a cross build TENSORRT_LIBRARY_DIRS
+# is a path on the BUILD HOST, so baking it into the binary is both useless at
+# runtime and a Yocto QA failure (bad-rpath/buildpaths) -- and unnecessary,
+# because the image installs TensorRT into ${libdir}, already on the default
+# loader path.
+if(CMAKE_CROSSCOMPILING)
+  set(TENSORRT_LINK_FLAGS -Xlinker -L${TENSORRT_LIBRARY_DIRS})
+else()
+  set(TENSORRT_LINK_FLAGS
+      -Xlinker -rpath=${TENSORRT_LIBRARY_DIRS}
+      -Xlinker -L${TENSORRT_LIBRARY_DIRS})
+endif()
+
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}
     ${GENCODE}
     -ccbin ${CMAKE_CXX_COMPILER}
     -Xcompiler -DWIN_INTERFACE_CUSTOM
-    -Xlinker -rpath=${TENSORRT_LIBRARY_DIRS}
-    -Xlinker -L${TENSORRT_LIBRARY_DIRS}
+    ${TENSORRT_LINK_FLAGS}
 )
 
 link_directories(${TENSORRT_LIBRARY_DIRS})
